@@ -1,5 +1,9 @@
 # Paperless Review Companion
 
+[![CI](https://github.com/Yurii201811/paperless-review-companion/actions/workflows/ci.yml/badge.svg)](https://github.com/Yurii201811/paperless-review-companion/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Manifest-first, local-model document triage for Paperless-ngx.
 
 Paperless Review Companion helps you review a large Paperless-ngx archive without
@@ -40,6 +44,16 @@ unchanged until you review an explicit dry-run plan.
 - Creates a write-back dry-run plan that only proposes controlled tags.
 - Optional guarded tag write-back through the Paperless API.
 - Never proposes document deletion.
+
+## Project Signals
+
+- Public-safe JSONL fixture for deterministic rules-only demos and CI.
+- Local-first design: no paid LLM API is required.
+- Manifest-first workflow with dry-run write-back planning before any live tag
+  changes.
+- Tests cover review classification, manifest loading, report rendering, and
+  write-back safety gates.
+- MIT licensed with privacy, setup, architecture, and security docs.
 
 ## Safety Model
 
@@ -166,10 +180,10 @@ python3 -m compileall src tests
 - [Privacy and safety](docs/privacy.md)
 - [Paperless setup](docs/paperless-setup.md)
 - [Roadmap](docs/roadmap.md)
+- [Changelog](CHANGELOG.md)
 
 ## Project Status
 
 This is an MVP companion CLI. It is useful for local-first Paperless archive
 triage, but it should be run on small batches first and reviewed carefully
 before enabling write-back.
-

@@ -24,6 +24,12 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/Yurii201811/paperless-review-companion"
+Repository = "https://github.com/Yurii201811/paperless-review-companion"
+Issues = "https://github.com/Yurii201811/paperless-review-companion/issues"
+Changelog = "https://github.com/Yurii201811/paperless-review-companion/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
@@ -36,4 +42,3 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-
