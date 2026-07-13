@@ -156,6 +156,14 @@ PAPERLESS_REVIEW_APPLY=YES paperless-review apply-writeback review/writeback-pla
 ```
 
 The tool refuses live apply unless all safety gates pass.
+Apply also revalidates the plan schema before contacting Paperless: safety flags
+must be literal JSON booleans, document IDs must be positive integers, and the
+underlying review status, confidence, issues, and keep recommendation must
+remain safe. The document type must be a canonical lowercase label other than
+`unknown` or `missing`, and the exact controlled tag set must still match the
+reviewed category, type, sensitivity, and action fields. Every JSONL line must
+be an object. Regenerate older plans after upgrading instead of editing them
+into the new schema.
 
 ## Categories
 

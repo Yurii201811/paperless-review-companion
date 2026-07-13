@@ -40,6 +40,10 @@ Rules-only mode does not contact Ollama, so the endpoint guard does not apply.
 - Generated tags use the `ai_review:` prefix by default.
 - The tool refuses low-confidence, unknown-type, or unsafe rows.
 - The tool does not delete documents.
+- Apply revalidates plan field types and underlying safety evidence before any
+  Paperless API request; string or numeric lookalikes do not satisfy boolean
+  gates, malformed JSONL rows are not skipped, and controlled tags must match
+  the reviewed evidence fields.
 - The tool requires `--apply --yes` and `PAPERLESS_REVIEW_APPLY=YES` for live
   tag changes.
 

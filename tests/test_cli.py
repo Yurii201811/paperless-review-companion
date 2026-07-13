@@ -76,3 +76,34 @@ def test_remote_ollama_override_is_explicitly_forwarded(tmp_path, monkeypatch) -
 
     assert status == 0
     assert output.exists()
+
+
+def test_apply_writeback_rejects_mixed_object_and_non_object_rows_before_client(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    plan = tmp_path / "writeback-plan.jsonl"
+    plan.write_text('{"document_id": 1}\n"not-an-object"\n', encoding="utf-8")
+    client_constructed = False
+
+    def fail_if_constructed(*args, **kwargs):
+        nonlocal client_constructed
+        client_constructed = True
+        raise AssertionError("Paperless client must not be constructed for a malformed plan")
+
+    monkeypatch.setattr(cli, "PaperlessClient", fail_if_constructed)
+
+    status = cli.main(
+        [
+            "apply-writeback",
+            str(plan),
+            "--paperless-url",
+            "http://127.0.0.1:8000",
+            "--paperless-token",
+            "test-token",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 1
+    assert "Expected a JSON object" in captured.err
+    assert client_constructed is False
