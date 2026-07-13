@@ -10,7 +10,12 @@ from typing import Any
 from .client import PaperlessClient
 from .manifest import append_jsonl, latest_by_document, load_jsonl, write_jsonl
 from .renderers import render_focus, render_full_report, render_triage
-from .review import DEFAULT_MODEL, DEFAULT_OLLAMA_URL, review_document
+from .review import (
+    DEFAULT_MODEL,
+    DEFAULT_OLLAMA_URL,
+    review_document,
+    validate_ollama_endpoint,
+)
 from .writeback import apply_tag_plan, plan_rows, render_plan_report
 
 
@@ -33,6 +38,9 @@ def load_input_documents(path: Path) -> list[dict[str, Any]]:
 
 
 def command_review(args: argparse.Namespace) -> int:
+    if not args.rules_only:
+        # Validate before reading a private export or fetching documents from Paperless.
+        validate_ollama_endpoint(args.ollama_url, allow_remote=args.allow_remote_ollama)
     if args.input:
         documents = load_input_documents(args.input)
         if args.limit:
@@ -52,6 +60,7 @@ def command_review(args: argparse.Namespace) -> int:
             model=args.model,
             ollama_url=args.ollama_url,
             timeout=args.timeout,
+            allow_remote_ollama=args.allow_remote_ollama,
         )
         for document in documents
     ]
@@ -117,13 +126,24 @@ def build_parser() -> argparse.ArgumentParser:
     review = sub.add_parser("review", help="Classify Paperless documents into a JSONL manifest.")
     review.add_argument("--input", type=Path, help="Offline JSONL document export.")
     review.add_argument("--paperless-url", help="Paperless base URL.")
-    review.add_argument("--paperless-token", help="Paperless API token.")
+    review.add_argument(
+        "--paperless-token",
+        help="Paperless API token (prefer PAPERLESS_TOKEN to avoid exposing it in process listings).",
+    )
     review.add_argument("--output", type=Path, required=True, help="Append-only review manifest JSONL.")
     review.add_argument("--limit", type=positive_int, default=10, help="Maximum documents to review.")
     review.add_argument("--page-size", type=positive_int, default=50, help="Paperless API page size.")
     review.add_argument("--content-chars", type=positive_int, default=3500, help="OCR excerpt chars per document.")
     review.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model.")
     review.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL, help="Ollama generate API URL.")
+    review.add_argument(
+        "--allow-remote-ollama",
+        action="store_true",
+        help=(
+            "Allow sending document metadata and OCR excerpts to a non-loopback "
+            "Ollama endpoint for this run."
+        ),
+    )
     review.add_argument("--timeout", type=positive_int, default=120, help="HTTP timeout seconds.")
     review.add_argument("--rules-only", action="store_true", help="Use deterministic local rules instead of Ollama.")
     review.set_defaults(func=command_review)
@@ -155,7 +175,10 @@ def build_parser() -> argparse.ArgumentParser:
     apply = sub.add_parser("apply-writeback", help="Dry-run or apply a guarded tag write-back plan.")
     apply.add_argument("plan", type=Path)
     apply.add_argument("--paperless-url")
-    apply.add_argument("--paperless-token")
+    apply.add_argument(
+        "--paperless-token",
+        help="Paperless API token (prefer PAPERLESS_TOKEN to avoid exposing it in process listings).",
+    )
     apply.add_argument("--timeout", type=positive_int, default=120)
     apply.add_argument("--tag-prefix", default="ai_review")
     apply.add_argument("--dry-run", action="store_true", help="Check the plan without writing tags.")
@@ -180,4 +203,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

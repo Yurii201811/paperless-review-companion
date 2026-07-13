@@ -18,10 +18,12 @@ contents, API tokens, or private archive exports in public issues.
 
 ## Data Handling
 
-The tool is designed for local-first use. Ollama requests are sent only to the
-configured Ollama URL. If you point the tool at a remote model server, you are
-responsible for that server's privacy and retention behavior.
+The tool is designed for local-first use. Ollama requests are limited to
+loopback endpoints by default. A non-loopback model server requires the explicit
+per-run `--allow-remote-ollama` flag; when using it, you are responsible for the
+server's transport security, logging, privacy, and retention behavior.
+Loopback Ollama requests bypass environment and system proxy settings so OCR
+prompt bodies stay on the direct local connection.
 
 Write-back is tag-only and guarded by explicit flags. The tool does not support
 document deletion.
-

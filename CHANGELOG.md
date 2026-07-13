@@ -4,6 +4,9 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Enforced the local-model privacy boundary by blocking non-loopback Ollama
+  endpoints unless `--allow-remote-ollama` is supplied for that run, and by
+  bypassing environment/system proxies for loopback model requests.
 - Added public repository polish: README quality signals, package project URLs,
   GitHub issue templates, and a pull request template.
 - Expanded CI coverage to Python 3.11 and 3.12.

@@ -10,6 +10,9 @@ This project assumes your Paperless archive is private.
 - write-back plans
 - terminal logs containing document titles or summaries
 
+Prefer `PAPERLESS_TOKEN` over `--paperless-token`; command-line arguments may be
+visible in process listings or captured in shell history.
+
 Those paths are ignored by `.gitignore`, but you should still inspect commits
 before publishing.
 
@@ -18,8 +21,18 @@ before publishing.
 The default model path uses Ollama. Prompts are sent to `http://127.0.0.1:11434`
 unless you override `--ollama-url`.
 
-If you configure a remote Ollama-compatible endpoint, document excerpts leave
-your machine.
+Non-loopback model endpoints are rejected before the tool reads an export or
+fetches documents from Paperless. To use a remote Ollama-compatible endpoint,
+you must add `--allow-remote-ollama` for that run. This explicit override means
+document metadata and OCR excerpts leave your machine; review the endpoint's
+transport security, logging, privacy, and retention policy first.
+
+Loopback Ollama requests ignore `HTTP_PROXY`, `HTTPS_PROXY`, and system proxy
+configuration so private prompt bodies cannot be forwarded through a proxy. An
+explicitly allowed remote endpoint uses the normal proxy-aware network path;
+treat that proxy as another recipient of the document data.
+
+Rules-only mode does not contact Ollama, so the endpoint guard does not apply.
 
 ## Write-Back Rules
 
@@ -38,4 +51,3 @@ your machine.
 4. Generate a write-back plan.
 5. Read the plan before applying.
 6. Back up Paperless before the first live write-back.
-
