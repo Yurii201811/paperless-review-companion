@@ -19,8 +19,6 @@ Authorization: Token your-token
 
 ```bash
 paperless-review review \
-  --paperless-url "$PAPERLESS_URL" \
-  --paperless-token "$PAPERLESS_TOKEN" \
   --limit 10 \
   --rules-only \
   --output review/first-pass.jsonl
@@ -31,8 +29,6 @@ Ollama:
 
 ```bash
 paperless-review review \
-  --paperless-url "$PAPERLESS_URL" \
-  --paperless-token "$PAPERLESS_TOKEN" \
   --limit 10 \
   --model gemma3:4b \
   --output review/first-pass.jsonl
@@ -46,4 +42,3 @@ context:
 ```bash
 paperless-review review --content-chars 5000 ...
 ```
-

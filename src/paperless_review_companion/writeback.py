@@ -48,6 +48,7 @@ def plan_rows(rows: list[dict[str, Any]], *, prefix: str = CONTROLLED_TAG_PREFIX
             {
                 "document_id": document.get("id"),
                 "title": document.get("title"),
+                "review_status": row.get("status"),
                 "dry_run": True,
                 "safe_to_apply": not issues,
                 "issues": issues,
@@ -56,8 +57,10 @@ def plan_rows(rows: list[dict[str, Any]], *, prefix: str = CONTROLLED_TAG_PREFIX
                 "document_type": review.get("document_type"),
                 "sensitivity": review.get("sensitivity"),
                 "action_needed": bool(review.get("action_needed")),
+                "needs_manual_review": bool(review.get("needs_manual_review")),
                 "tags_to_add": tags_for_review(review, prefix),
                 "summary": review.get("summary"),
+                "keep_in_paperless": review.get("keep_in_paperless"),
                 "no_delete": True,
             }
         )
@@ -124,26 +127,102 @@ def render_plan_report(source: str, planned: list[dict[str, Any]]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def validate_plan_for_apply(planned: list[dict[str, Any]], prefix: str = CONTROLLED_TAG_PREFIX) -> list[str]:
+def validate_plan_for_apply(planned: list[Any], prefix: str = CONTROLLED_TAG_PREFIX) -> list[str]:
     failures: list[str] = []
     if not planned:
         failures.append("plan is empty")
-    for row in planned:
-        if not row.get("dry_run"):
-            failures.append(f"document {row.get('document_id')}: dry_run is not true")
-        if not row.get("safe_to_apply"):
-            failures.append(f"document {row.get('document_id')}: not safe_to_apply")
-        if not row.get("no_delete"):
-            failures.append(f"document {row.get('document_id')}: no_delete is not true")
-        for tag in row.get("tags_to_add") or []:
+    for row_number, row in enumerate(planned, start=1):
+        if not isinstance(row, dict):
+            failures.append(f"row {row_number}: plan entry must be an object")
+            continue
+        document_id = row.get("document_id")
+        label = f"row {row_number} (document {document_id!r})"
+        if type(document_id) is not int or document_id < 1:
+            failures.append(f"{label}: document_id must be a positive integer")
+        if row.get("review_status") != "reviewed":
+            failures.append(f"{label}: review_status is not reviewed")
+        if row.get("dry_run") is not True:
+            failures.append(f"{label}: dry_run must be literal true")
+        if row.get("safe_to_apply") is not True:
+            failures.append(f"{label}: safe_to_apply must be literal true")
+        if row.get("keep_in_paperless") is not True:
+            failures.append(f"{label}: keep_in_paperless must be literal true")
+        if row.get("no_delete") is not True:
+            failures.append(f"{label}: no_delete must be literal true")
+
+        issues = row.get("issues")
+        if not isinstance(issues, list):
+            failures.append(f"{label}: issues must be a list")
+        elif issues:
+            failures.append(f"{label}: unresolved safety issues: {', '.join(map(str, issues))}")
+
+        confidence = row.get("confidence")
+        if (
+            isinstance(confidence, bool)
+            or not isinstance(confidence, (int, float))
+            or not 0.75 <= confidence <= 1
+        ):
+            failures.append(f"{label}: confidence must be a number from 0.75 to 1")
+        document_type = row.get("document_type")
+        normalized_document_type = clean_label(document_type, "unknown")
+        if (
+            not isinstance(document_type, str)
+            or document_type != normalized_document_type
+            or normalized_document_type in {"unknown", "missing"}
+        ):
+            failures.append(f"{label}: document_type is not safe to apply")
+
+        category = row.get("category")
+        sensitivity = row.get("sensitivity")
+        action_needed = row.get("action_needed")
+        needs_manual_review = row.get("needs_manual_review")
+        if not isinstance(category, str) or not category.strip():
+            failures.append(f"{label}: category must be a non-empty string")
+        if not isinstance(sensitivity, str) or not sensitivity.strip():
+            failures.append(f"{label}: sensitivity must be a non-empty string")
+        if type(action_needed) is not bool:
+            failures.append(f"{label}: action_needed must be a boolean")
+        if type(needs_manual_review) is not bool:
+            failures.append(f"{label}: needs_manual_review must be a boolean")
+
+        tags = row.get("tags_to_add")
+        if not isinstance(tags, list) or not tags:
+            failures.append(f"{label}: tags_to_add must be a non-empty list")
+            continue
+        tags_are_strings = all(isinstance(tag, str) for tag in tags)
+        for tag in tags:
             if not isinstance(tag, str) or not tag.startswith(f"{prefix}:"):
-                failures.append(f"document {row.get('document_id')}: invalid tag {tag!r}")
+                failures.append(f"{label}: invalid tag {tag!r}")
+        if (
+            isinstance(category, str)
+            and category.strip()
+            and isinstance(sensitivity, str)
+            and sensitivity.strip()
+            and isinstance(document_type, str)
+            and document_type == normalized_document_type
+            and normalized_document_type not in {"unknown", "missing"}
+            and type(action_needed) is bool
+            and type(needs_manual_review) is bool
+            and tags_are_strings
+        ):
+            expected_tags = tags_for_review(
+                {
+                    "primary_category": category,
+                    "document_type": document_type,
+                    "sensitivity": sensitivity,
+                    "action_needed": action_needed,
+                    "needs_manual_review": needs_manual_review,
+                },
+                prefix,
+            )
+            if sorted(set(tags)) != expected_tags or len(tags) != len(expected_tags):
+                failures.append(f"{label}: tags_to_add does not match the reviewed safety fields")
     return failures
 
 
 def apply_tag_plan(
     client: PaperlessClient,
-    planned: list[dict[str, Any]],
+    planned: list[Any],
     *,
     apply: bool,
     yes: bool,

@@ -34,6 +34,7 @@ unchanged until you review an explicit dry-run plan.
 - Reads Paperless documents through the official REST API.
 - Can also classify an exported JSONL document file for offline tests.
 - Uses Ollama locally by default, with no cloud LLM dependency.
+- Refuses non-loopback model endpoints unless you explicitly opt in for that run.
 - Includes a rules-only mode for deterministic dry runs and CI.
 - Writes append-only JSONL manifests.
 - Deduplicates repeated manifest rows by document ID when rendering reports.
@@ -99,23 +100,33 @@ paperless-review plan-writeback review/demo-review.jsonl --output review/demo-pl
 
 ## Paperless API Review
 
-Create a local `.env` file or export values in your shell:
+Export values in your shell:
 
 ```bash
 export PAPERLESS_URL="http://127.0.0.1:8000"
 export PAPERLESS_TOKEN="your-paperless-api-token"
 ```
 
+The CLI reads these values from the process environment; it does not load a
+`.env` file automatically. If you keep a local `.env`, load it into your shell
+before running the command. Prefer the environment variable over
+`--paperless-token`, because command-line arguments can be visible in process
+listings.
+
 Review the first 25 documents with Ollama:
 
 ```bash
 paperless-review review \
-  --paperless-url "$PAPERLESS_URL" \
-  --paperless-token "$PAPERLESS_TOKEN" \
   --limit 25 \
   --model gemma3:4b \
   --output review/paperless-review.jsonl
 ```
+
+The CLI validates the model endpoint before it reads an export or fetches
+documents. `localhost`, `127.0.0.0/8`, and `::1` are allowed by default. A
+non-loopback Ollama-compatible endpoint is blocked unless you add
+`--allow-remote-ollama`; that flag means document metadata and OCR excerpts may
+leave your machine and must be supplied again on each intentional remote run.
 
 Resume into the same manifest by running with the same `--output`; later rows
 replace earlier rows for reporting, but the manifest remains append-only.
@@ -134,8 +145,6 @@ Dry-run the plan against Paperless:
 
 ```bash
 paperless-review apply-writeback review/writeback-plan.jsonl \
-  --paperless-url "$PAPERLESS_URL" \
-  --paperless-token "$PAPERLESS_TOKEN" \
   --dry-run
 ```
 
@@ -143,12 +152,18 @@ Apply only after reviewing the plan:
 
 ```bash
 PAPERLESS_REVIEW_APPLY=YES paperless-review apply-writeback review/writeback-plan.jsonl \
-  --paperless-url "$PAPERLESS_URL" \
-  --paperless-token "$PAPERLESS_TOKEN" \
   --apply --yes
 ```
 
 The tool refuses live apply unless all safety gates pass.
+Apply also revalidates the plan schema before contacting Paperless: safety flags
+must be literal JSON booleans, document IDs must be positive integers, and the
+underlying review status, confidence, issues, and keep recommendation must
+remain safe. The document type must be a canonical lowercase label other than
+`unknown` or `missing`, and the exact controlled tag set must still match the
+reviewed category, type, sensitivity, and action fields. Every JSONL line must
+be an object. Regenerate older plans after upgrading instead of editing them
+into the new schema.
 
 ## Categories
 

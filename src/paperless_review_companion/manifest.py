@@ -16,8 +16,9 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
                 value = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"Could not parse {path}:{line_number}: {exc}") from exc
-            if isinstance(value, dict):
-                rows.append(value)
+            if not isinstance(value, dict):
+                raise ValueError(f"Expected a JSON object at {path}:{line_number}.")
+            rows.append(value)
     return rows
 
 
@@ -65,4 +66,3 @@ def document_of(row: dict[str, Any]) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return row
-

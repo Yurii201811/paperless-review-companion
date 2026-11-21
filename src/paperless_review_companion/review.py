@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import ipaddress
 import json
 import re
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -10,6 +12,54 @@ from .constants import CATEGORIES, PROTECTED_CATEGORIES, REQUIRED_REVIEW_FIELDS,
 
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+
+
+def is_loopback_ollama_url(ollama_url: str) -> bool:
+    """Return whether an HTTP(S) model endpoint is bound to loopback."""
+    try:
+        parsed = urllib.parse.urlsplit(ollama_url)
+    except ValueError:
+        return False
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_ollama_endpoint(ollama_url: str, *, allow_remote: bool = False) -> None:
+    """Fail closed before private OCR is sent to a model endpoint."""
+    try:
+        parsed = urllib.parse.urlsplit(ollama_url)
+    except ValueError:
+        raise ValueError("Ollama URL must be an http(s) URL with a hostname") from None
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Ollama URL must be an http(s) URL with a hostname")
+    if not allow_remote and not is_loopback_ollama_url(ollama_url):
+        raise ValueError(
+            "Refusing a non-loopback Ollama endpoint because document metadata and OCR excerpts "
+            "would leave this machine. Pass --allow-remote-ollama only after reviewing the "
+            "endpoint's privacy and retention policy."
+        )
+
+
+def _open_ollama_request(
+    request: urllib.request.Request,
+    *,
+    ollama_url: str,
+    timeout: int,
+) -> Any:
+    if is_loopback_ollama_url(ollama_url):
+        # A validated loopback URL is not private if urllib forwards its body to
+        # HTTP(S)_PROXY. Supplying an explicit empty handler suppresses all
+        # environment and system proxy discovery for local model requests.
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        return opener.open(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout)
 
 
 def compact_text(value: Any, limit: int = 3500) -> str:
@@ -62,7 +112,15 @@ Document JSON:
 """
 
 
-def ollama_review(document: dict[str, Any], *, model: str, ollama_url: str, timeout: int) -> dict[str, Any]:
+def ollama_review(
+    document: dict[str, Any],
+    *,
+    model: str,
+    ollama_url: str,
+    timeout: int,
+    allow_remote: bool = False,
+) -> dict[str, Any]:
+    validate_ollama_endpoint(ollama_url, allow_remote=allow_remote)
     body = json.dumps(
         {
             "model": model,
@@ -73,7 +131,7 @@ def ollama_review(document: dict[str, Any], *, model: str, ollama_url: str, time
         }
     ).encode("utf-8")
     request = urllib.request.Request(ollama_url, data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with _open_ollama_request(request, ollama_url=ollama_url, timeout=timeout) as response:
         payload = json.loads(response.read().decode("utf-8"))
     raw = payload.get("response", "")
     if not isinstance(raw, str):
@@ -209,10 +267,23 @@ def review_document(
     model: str = DEFAULT_MODEL,
     ollama_url: str = DEFAULT_OLLAMA_URL,
     timeout: int = 120,
+    allow_remote_ollama: bool = False,
 ) -> dict[str, Any]:
+    if not rules_only:
+        validate_ollama_endpoint(ollama_url, allow_remote=allow_remote_ollama)
     reviewed_at = dt.datetime.now(dt.timezone.utc).isoformat()
     try:
-        raw = rules_review(document) if rules_only else ollama_review(document, model=model, ollama_url=ollama_url, timeout=timeout)
+        raw = (
+            rules_review(document)
+            if rules_only
+            else ollama_review(
+                document,
+                model=model,
+                ollama_url=ollama_url,
+                timeout=timeout,
+                allow_remote=allow_remote_ollama,
+            )
+        )
         review = normalize_review(raw, document)
         return {"status": "reviewed", "reviewed_at": reviewed_at, "document": document, "review": review}
     except Exception as exc:  # noqa: BLE001 - CLI should preserve failed rows in the manifest.
