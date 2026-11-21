@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paperless-review-companion"
-version = "0.1.0"
+version = "0.2.0"
 description = "Manifest-first local-model review and triage for Paperless-ngx archives"
 readme = "README.md"
 requires-python = ">=3.11"
